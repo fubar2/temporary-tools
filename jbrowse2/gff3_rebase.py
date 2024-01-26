@@ -4,7 +4,10 @@ import copy
 import logging
 import sys
 
-from BCBio import GFF
+import jb2_GFF as GFF_jb2
+
+# from BCBio import GFF
+
 from Bio.SeqFeature import FeatureLocation
 
 logging.basicConfig(level=logging.INFO)
@@ -84,7 +87,7 @@ def feature_test_qual_value(feature, **kwargs):
 
 def __get_features(child, interpro=False):
     child_features = {}
-    for rec in GFF.parse(child):
+    for rec in GFF_jb2.parse(child):
         # Only top level
         for feature in rec.features:
             # Get the record id as parent_feature_id (since this is how it will be during remapping)
@@ -145,7 +148,7 @@ def rebase(parent, child, interpro=False, protein2dna=False, map_by="ID"):
     # get all of the features we will be re-mapping in a dictionary, keyed by parent feature ID
     child_features = __get_features(child, interpro=interpro)
 
-    for rec in GFF.parse(parent):
+    for rec in GFF_jb2.parse(parent):
         replacement_features = []
         for feature in feature_lambda(
             rec.features,
@@ -181,7 +184,7 @@ def rebase(parent, child, interpro=False, protein2dna=False, map_by="ID"):
         # were rebasing against in our result.
         rec.features = replacement_features
         rec.annotations = {}
-        GFF.write([rec], sys.stdout)
+        GFF_jb2.write([rec], sys.stdout)
 
 
 if __name__ == "__main__":

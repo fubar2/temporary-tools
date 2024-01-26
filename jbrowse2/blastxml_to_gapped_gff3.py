@@ -5,7 +5,13 @@ import logging
 import re
 import sys
 
-from BCBio import GFF
+from Bio.Blast import NCBIXML
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+from Bio.SeqFeature import SeqFeature, SimpleLocation
+
+from GFFOutput import write as writeGFF
+# from BCBio import GFF
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(name="blastxml2gff3")
@@ -17,11 +23,6 @@ blast hits. This tool aims to fill that "gap".
 
 
 def blastxml2gff3(blastxml, min_gap=3, trim=False, trim_end=False, include_seq=False):
-    from Bio.Blast import NCBIXML
-    from Bio.Seq import Seq
-    from Bio.SeqRecord import SeqRecord
-    from Bio.SeqFeature import SeqFeature, SimpleLocation
-
     blast_records = NCBIXML.parse(blastxml)
     for idx_record, record in enumerate(blast_records):
         # http://www.sequenceontology.org/browser/release_2.4/term/SO:0000343
@@ -32,7 +33,7 @@ def blastxml2gff3(blastxml, min_gap=3, trim=False, trim_end=False, include_seq=F
 
         recid = record.query
         if " " in recid:
-            recid = recid[0: recid.index(" ")]
+            recid = recid[0 : recid.index(" ")]
 
         rec = SeqRecord(Seq("ACTG"), id=recid)
         for idx_hit, hit in enumerate(record.alignments):
@@ -72,7 +73,7 @@ def blastxml2gff3(blastxml, min_gap=3, trim=False, trim_end=False, include_seq=F
                     qualifiers["blast_" + prop] = getattr(hsp, prop, None)
 
                 desc = hit.title.split(" >")[0]
-                qualifiers["description"] = desc[desc.index(" "):]
+                qualifiers["description"] = desc[desc.index(" ") :]
 
                 # This required a fair bit of sketching out/match to figure out
                 # the first time.
@@ -86,7 +87,7 @@ def blastxml2gff3(blastxml, min_gap=3, trim=False, trim_end=False, include_seq=F
                 # protein.
                 parent_match_end = hsp.query_start + hit.length + hsp.query.count("-")
 
-                # If we trim the left end, we need to trim without losing information.
+                # need to trim without losing information.
                 used_parent_match_start = parent_match_start
                 if trim:
                     if parent_match_start < 1:
@@ -116,13 +117,13 @@ def blastxml2gff3(blastxml, min_gap=3, trim=False, trim_end=False, include_seq=F
                     part_qualifiers["Gap"] = cigar
                     part_qualifiers["ID"] = qualifiers["ID"] + (".%s" % idx_part)
 
-                    # Otherwise, we have to account for the subject start's location
+                    # account for the subject start's location
                     match_part_start = parent_match_start + hsp.sbjct_start + start - 1
 
                     # We used to use hsp.align_length here, but that includes
                     # gaps in the parent sequence
                     #
-                    # Furthermore align_length will give calculation errors in weird places
+                    # align_length will give calculation errors in weird places
                     # So we just use (end-start) for simplicity
                     match_part_end = match_part_start + (end - start)
 
@@ -161,9 +162,9 @@ def __remove_query_gaps(query, match, subject):
     fm = ""
     fs = ""
     for position in re.finditer("-", query):
-        fq += query[prev: position.start()]
-        fm += match[prev: position.start()]
-        fs += subject[prev: position.start()]
+        fq += query[prev : position.start()]
+        fm += match[prev : position.start()]
+        fs += subject[prev : position.start()]
         prev = position.start() + 1
     fq += query[prev:]
     fm += match[prev:]
@@ -290,11 +291,13 @@ if __name__ == "__main__":
         help="Trim blast hits to be only as long as the parent feature",
     )
     parser.add_argument(
-        "--trim_end", action="store_true", help="Cut blast results off at end of gene"
+        "--trim_end",
+        action="store_true",
+        help="Cut blast results off at end of gene",
     )
     parser.add_argument("--include_seq", action="store_true", help="Include sequence")
     args = parser.parse_args()
 
     for rec in blastxml2gff3(**vars(args)):
         if len(rec.features):
-            GFF.write([rec], sys.stdout)
+            writeGFF([rec], sys.stdout)
