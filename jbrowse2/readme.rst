@@ -34,9 +34,11 @@ That webserver code is separately under the Apache 2 license copied in this repo
 
 History
 =======
+- 2.10.0+galaxy2_1
+    - improved regexp for default location from @hexylena
+    - failed review at IUC so moved to https://github.com/usegalaxy-eu/temporary-tools/edit/master/jbrowse2
 
 - 2.10.0+galaxy2
-
     - UPDATED existing JBrowse1.16.11 code to JBrowse 2.10.0
     - was working well enough for VGP when previous PR discovered
         - too late to backport all the fixes
