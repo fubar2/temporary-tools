@@ -322,7 +322,7 @@ until the IUC complete their own.
                 <expand macro="track_styling_linear"/>
 
                 <!-- examples: https://github.com/GMOD/jbrowse-components/discussions/2729
-                        and https://github.com/GMOD/jbrowse-components/blob/main/plugins/svg/src/SvgFeatureRenderer/configSchema.ts#L41  -->
+                        and https://github.com/GMOD/jbrowse-components/blob/main/plugins/svg/src/SvgFeatureRenderer/configSchema.ts#L41   -->
                 <param label="Features label"
                         type="text"
                         name="label"
