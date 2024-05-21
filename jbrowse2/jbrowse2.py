@@ -22,7 +22,7 @@ log = logging.getLogger("jbrowse")
 JB2VER = "v2.11.0"
 # version pinned if cloning - but not cloning now
 logCommands = True
-# useful for seeing what's being written but not for production setups
+# useful for seeing what's being written but NOT for production setups
 TODAY = datetime.datetime.now().strftime("%Y-%m-%d")
 SELF_LOCATION = os.path.dirname(os.path.realpath(__file__))
 GALAXY_INFRASTRUCTURE_URL = None
@@ -39,32 +39,6 @@ mapped_chars = {
     "#": "__pd__",
     "": "__cn__",
 }
-
-
-INDEX_TEMPLATE = """<!doctype html>
-<html lang="en" style="height:100%">
-<head>
-<meta charset="utf-8"/>
-<link rel="shortcut icon" href="./favicon.ico"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="theme-color" content="#000000"/>
-<meta name="description" content="A fast and flexible genome browser"/>
-<link rel="manifest" href="./manifest.json"/>
-<title>JBrowse</title>
-</script>
-</head>
-<body style="overscroll-behavior:none; height:100%; margin: 0;">
-<iframe
-  id="jbframe"
-  title="JBrowse2"
-  frameborder="0"
-  width="100%"
-  height="100%"
-  src='index_noview.html?config=config.json__SESSION_SPEC__'>
-</iframe>
-</body>
-</html>
-"""
 
 
 class ColorScaling(object):
@@ -491,7 +465,8 @@ class JbrowseConnector(object):
             nrow = len(fl)
         else:
             try:
-                scontext = ssl.SSLContext(ssl.PROTOCOL_TLS)
+                scontext = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                scontext.check_hostname = False
                 scontext.verify_mode = ssl.VerifyMode.CERT_NONE
                 with urllib.request.urlopen(url, context=scontext) as f:
                     fl = f.readlines()
@@ -544,7 +519,8 @@ class JbrowseConnector(object):
         """
         if useuri:
             faname = fapath
-            scontext = ssl.SSLContext(ssl.PROTOCOL_TLS)
+            scontext = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            scontext.check_hostname = False
             scontext.verify_mode = ssl.VerifyMode.CERT_NONE
             with urllib.request.urlopen(url=faname + ".fai", context=scontext) as f:
                 fl = f.readline()
@@ -897,7 +873,7 @@ class JbrowseConnector(object):
             genseqad = gsa[0]["genome_sequence_adapter"]
         else:
             genseqad = "Not found"
-            logging.warn("No adapter found for cram %s in gsa=%s" % (tId, gsa))
+            logging.warning("No adapter found for cram %s in gsa=%s" % (tId, gsa))
         if useuri:
             url = data
         else:
@@ -965,7 +941,7 @@ class JbrowseConnector(object):
             url = data
         else:
             url = tId
-            dest = "%s/%s" % (self.outdir, url)
+            dest = os.path.join(self.outdir, url)
             cmd = "bgzip -c %s  > %s" % (data, dest)
             self.subprocess_popen(cmd)
             cmd = ["tabix", "-f", "-p", "vcf", dest]
@@ -1032,7 +1008,7 @@ class JbrowseConnector(object):
             url = trackData["path"]
         else:
             url = tId + ".gz"
-            dest = "%s/%s" % (self.outdir, url)
+            dest = os.path.join(self.outdir, url)
             self._sort_gff(data, dest)
         categ = trackData["category"]
         trackDict = {
@@ -1078,7 +1054,7 @@ class JbrowseConnector(object):
             url = data
         else:
             url = tId + ".gz"
-            dest = "%s/%s" % (self.outdir, url)
+            dest = os.path.join(self.outdir, url)
             self._sort_bed(data, dest)
         trackDict = {
             "type": "FeatureTrack",
@@ -1125,7 +1101,7 @@ class JbrowseConnector(object):
         url = tId
         useuri = data.startswith("http://") or data.startswith("https://")
         if not useuri:
-            dest = "%s/%s" % (self.outdir, url)
+            dest = os.path.join(self.outdir, url)
             self.symlink_or_copy(os.path.realpath(data), dest)
             nrow = self.getNrow(dest)
         else:
@@ -1327,6 +1303,7 @@ class JbrowseConnector(object):
          https://github.com/abretaud/tools-iuc/blob/jbrowse2/tools/jbrowse2/jbrowse2.py
         """
         # TODO using the default session for now, but check out session specs in the future https://github.com/GMOD/jbrowse-components/issues/2708
+        bpPerPx = 50 # this is tricky since browser window width is unknown - this seems a compromise that sort of works....
         track_types = {}
         with open(self.config_json_file, "r") as config_file:
             config_json = json.load(config_file)
@@ -1365,24 +1342,17 @@ class JbrowseConnector(object):
                             "displays": [style_data],
                         }
                     )
-            view_json = {
-                "type": "LinearGenomeView",
-                "offsetPx": 0,
-                "minimized": False,
-                "tracks": tracks_data,
-            }
             first = [x for x in self.ass_first_contigs if x[0] == gnome]
-            if len(first) > 0:
-                [gnome, refName, end] = first[0]
-                start = 0
-                end = int(end)
-                drdict = {
-                    "refName": refName,
-                    "start": start,
-                    "end": end,
+            drdict = {
                     "reversed": False,
                     "assemblyName": gnome,
                 }
+            if len(first) > 0:
+                [gnome, refName, end] = first[0]
+                drdict["refName"] = refName
+                drdict["start"] = 0
+                end = int(end)
+                drdict["end"] = end        
             else:
                 ddl = default_data.get("defaultLocation", None)
                 if ddl:
@@ -1400,6 +1370,13 @@ class JbrowseConnector(object):
                             "@@@ regexp could not match contig:start..end in the supplied location %s - please fix"
                             % ddl
                         )
+            view_json = {
+                "type": "LinearGenomeView",
+                "offsetPx": 0,
+                "bpPerPx" : bpPerPx,
+                "minimized": False,
+                "tracks": tracks_data
+            }
             if drdict.get("refName", None):
                 # TODO displayedRegions is not just zooming to the region, it hides the rest of the chromosome
                 view_json["displayedRegions"] = [
@@ -1415,7 +1392,6 @@ class JbrowseConnector(object):
         for key, value in mapped_chars.items():
             session_name = session_name.replace(value, key)
         session_json["name"] = session_name
-
         if "views" not in session_json:
             session_json["views"] = session_views
         else:
@@ -1429,14 +1405,7 @@ class JbrowseConnector(object):
 
     def add_defsess_to_index(self, data):
         """
-        PROBABLY NOW BROKEN by changes since this was deprecated temporarily as at April 18
-
-        Included on request of the new codeowner, from Anthony's IUC PR.
-        Had to be fixed to keep each assembly with the associated tracks for a default view.
-        Originally used only the first assembly, putting all tracks there and so breaking some
-        when tested with 2 or more.
-
-         ----------------------------------------------------------
+        ----------------------------------------------------------
         Add some default session settings: set some assemblies/tracks on/off
 
         This allows to select a default view:
@@ -1461,6 +1430,33 @@ class JbrowseConnector(object):
         https://github.com/GMOD/jbrowse-components/discussions/3568
         https://github.com/GMOD/jbrowse-components/pull/4148
         """
+
+
+        INDEX_TEMPLATE = """<!doctype html>
+        <html lang="en" style="height:100%">
+        <head>
+        <meta charset="utf-8"/>
+        <link rel="shortcut icon" href="./favicon.ico"/>
+        <meta name="viewport" content="width=device-width,initial-scale=1"/>
+        <meta name="theme-color" content="#000000"/>
+        <meta name="description" content="A fast and flexible genome browser"/>
+        <link rel="manifest" href="./manifest.json"/>
+        <title>JBrowse</title>
+        </script>
+        </head>
+        <body style="overscroll-behavior:none; height:100%; margin: 0;">
+        <iframe
+        id="jbframe"
+        title="JBrowse2"
+        frameborder="0"
+        width="100%"
+        height="100%"
+        src='index_noview.html?config=config.json__SESSION_SPEC__'>
+        </iframe>
+        </body>
+        </html>
+        """
+
         new_index = "Nothing written"
         session_spec = {"views": []}
         logging.debug("def ass_first=%s\ndata=%s" % (self.ass_first_contigs, data))
@@ -1544,10 +1540,15 @@ class JbrowseConnector(object):
             "version.txt",
             "test_data",
         ]:
-            cmd = ["rm", "-rf", os.path.join(dest, fn)]
-            self.subprocess_check_call(cmd)
-        cmd = ["cp", os.path.join(INSTALLED_TO, "jb2_webserver.py"), dest]
-        self.subprocess_check_call(cmd)
+            try:
+                path = os.path.join(dest, fn)
+                if os.path.isdir(path):
+                    shutil.rmtree(path)
+                else:
+                    os.remove(path)
+            except OSError as e:
+                log.error("Error: %s - %s." % (e.filename, e.strerror))
+        shutil.copyfile(os.path.join(INSTALLED_TO, "jb2_webserver.py"), os.path.join(dest, "jb2_webserver.py"))
 
 
 def parse_style_conf(item):
@@ -1561,7 +1562,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="", epilog="")
     parser.add_argument("--xml", help="Track Configuration")
     parser.add_argument(
-        "--jbrowse2path", help="Path to JBrowse2 directory in biocontainer or Conda"
+        "--jbrowse2path", help="Path to JBrowse2 directory in BioContainer or Conda"
     )
     parser.add_argument("--outdir", help="Output directory", default="out")
     parser.add_argument("--version", "-V", action="version", version=JB2VER)
